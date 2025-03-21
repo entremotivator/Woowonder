@@ -2,95 +2,92 @@ import streamlit as st
 import requests
 import pandas as pd
 
-# Configure Streamlit Page
+# Set page configuration
 st.set_page_config(page_title="WooWonder Exporter", layout="wide")
 
-# Sidebar: API Configuration
-st.sidebar.title("⚙️ Settings")
-api_key = st.sidebar.text_input("🔑 Enter WooWonder API Key", type="password")
-base_url = st.sidebar.text_input("🌐 WooWonder API URL", "https://your-woowonder-site.com/api/")
+# Sidebar: API settings
+st.sidebar.title("⚙️ API Configuration")
+api_key = st.sidebar.text_input("🔑 Enter API Access Token", type="password")
+base_url = st.sidebar.text_input("🌐 WooWonder API URL", "http://your-site.com/api/")
 
-# API Connection Test
-def test_api_connection():
+# API Test Connection
+def test_api():
     if not api_key or not base_url:
         return "Not Configured"
     try:
         test_endpoint = f"{base_url}status"
-        headers = {"Authorization": f"Bearer {api_key}"}
-        response = requests.get(test_endpoint, headers=headers, timeout=5)
+        response = requests.get(test_endpoint, timeout=5)
         return "Connected" if response.status_code == 200 else f"Error {response.status_code}"
     except Exception as e:
         return f"Error: {e}"
 
-connection_status = test_api_connection()
-st.sidebar.info(f"API Connection Status: **{connection_status}**")
+connection_status = test_api()
+st.sidebar.info(f"API Status: **{connection_status}**")
 
-# Navigation options
+# Navigation
 page = st.sidebar.radio("📌 Navigation", ["🏆 Export Members", "📝 Export Posts"])
 
-# Function to fetch all users
+# Fetch all users
 def fetch_all_users():
-    if not api_key:
-        st.warning("⚠️ Please enter your API key in the sidebar.")
+    if not api_key or not base_url:
+        st.warning("⚠️ Enter API details in the sidebar.")
         return None
 
     users = []
-    limit = 50  # Adjust based on API limits
+    limit = 50  # Adjust as needed
     offset = 0
-    url = f"{base_url}get-many-users-data"
-    headers = {"Authorization": f"Bearer {api_key}"}
+    url = f"{base_url}get-many-users-data?access_token={api_key}"
 
     while True:
         params = {"limit": limit, "offset": offset}
-        response = requests.get(url, headers=headers, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
-            if data.get("api_status") == 200 and data.get("users"):
+            if data.get("api_status") == 200 and "users" in data:
                 users.extend(data["users"])
                 offset += limit
             else:
-                break  # Stop when no more users are returned
+                break  # No more users
         else:
             st.error(f"❌ API Error {response.status_code}: {response.text}")
             break
 
     return users
 
-# Function to fetch posts
+# Fetch posts
 def fetch_all_posts():
-    if not api_key:
-        st.warning("⚠️ Please enter your API key in the sidebar.")
+    if not api_key or not base_url:
+        st.warning("⚠️ Enter API details in the sidebar.")
         return None
 
     posts = []
-    limit = 50  # Adjust based on API limits
+    limit = 50  # Adjust as needed
     offset = 0
-    url = f"{base_url}get-posts"  # Modify this endpoint as per your API docs
-    headers = {"Authorization": f"Bearer {api_key}"}
+    url = f"{base_url}get-posts?access_token={api_key}"
 
     while True:
         params = {"limit": limit, "offset": offset}
-        response = requests.get(url, headers=headers, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
-            if data.get("api_status") == 200 and data.get("posts"):
+            if data.get("api_status") == 200 and "posts" in data:
                 posts.extend(data["posts"])
                 offset += limit
             else:
-                break  # Stop when no more posts are returned
+                break  # No more posts
         else:
             st.error(f"❌ API Error {response.status_code}: {response.text}")
             break
 
     return posts
 
-# Function to export data
+# Export data
 def export_data(data, filename, format_type):
     df = pd.DataFrame(data)
     if df.empty:
-        st.warning("⚠️ No data available to export.")
+        st.warning("⚠️ No data to export.")
         return
 
     if format_type == "CSV":
@@ -100,8 +97,8 @@ def export_data(data, filename, format_type):
         json_data = df.to_json(orient="records", indent=4)
         st.download_button("📥 Download JSON", json_data, file_name=filename, mime="application/json")
 
-# Function to display paginated table
-def display_paginated_table(data, page_size=10):
+# Display paginated table
+def display_table(data, page_size=10):
     df = pd.DataFrame(data)
     total = len(df)
     if total == 0:
@@ -112,9 +109,9 @@ def display_paginated_table(data, page_size=10):
     start_idx = (page_number - 1) * page_size
     end_idx = start_idx + page_size
     st.dataframe(df.iloc[start_idx:end_idx])
-    st.write(f"Showing records {start_idx + 1} to {min(end_idx, total)} out of {total}")
+    st.write(f"Showing records {start_idx + 1} to {min(end_idx, total)} of {total}")
 
-# --- Main Section: Export Members ---
+# --- Export Members Page ---
 if page == "🏆 Export Members":
     st.title("👥 Export WooWonder Members")
     
@@ -124,13 +121,13 @@ if page == "🏆 Export Members":
         
         if members:
             st.success(f"✅ Loaded {len(members)} members!")
-            display_paginated_table(members, page_size=10)
+            display_table(members, page_size=10)
             export_data(members, "members.csv", "CSV")
             export_data(members, "members.json", "JSON")
         else:
             st.error("No member data available.")
 
-# --- Main Section: Export Posts ---
+# --- Export Posts Page ---
 elif page == "📝 Export Posts":
     st.title("📝 Export WooWonder Posts")
 
@@ -140,10 +137,11 @@ elif page == "📝 Export Posts":
         
         if posts:
             st.success(f"✅ Loaded {len(posts)} posts!")
-            display_paginated_table(posts, page_size=10)
+            display_table(posts, page_size=10)
             export_data(posts, "posts.csv", "CSV")
             export_data(posts, "posts.json", "JSON")
         else:
             st.error("No post data available.")
+
 
 
