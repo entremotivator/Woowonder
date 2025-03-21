@@ -2,10 +2,10 @@ import streamlit as st
 import requests
 import pandas as pd
 
-# Configure Streamlit page
+# Configure Streamlit Page
 st.set_page_config(page_title="WooWonder Exporter", layout="wide")
 
-# Sidebar: API settings
+# Sidebar: API Configuration
 st.sidebar.title("⚙️ Settings")
 api_key = st.sidebar.text_input("🔑 Enter WooWonder API Key", type="password")
 base_url = st.sidebar.text_input("🌐 WooWonder API URL", "https://your-woowonder-site.com/api/")
@@ -28,29 +28,63 @@ st.sidebar.info(f"API Connection Status: **{connection_status}**")
 # Navigation options
 page = st.sidebar.radio("📌 Navigation", ["🏆 Export Members", "📝 Export Posts"])
 
-# Function to fetch multiple users' data
-def fetch_users(user_ids):
+# Function to fetch all users
+def fetch_all_users():
     if not api_key:
         st.warning("⚠️ Please enter your API key in the sidebar.")
         return None
 
+    users = []
+    limit = 50  # Adjust based on API limits
+    offset = 0
     url = f"{base_url}get-many-users-data"
     headers = {"Authorization": f"Bearer {api_key}"}
-    payload = {"user_ids": ",".join(map(str, user_ids))}
-    
-    try:
-        response = requests.post(url, headers=headers, data=payload, timeout=10)
+
+    while True:
+        params = {"limit": limit, "offset": offset}
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+        
         if response.status_code == 200:
             data = response.json()
-            if data.get("api_status") == 200:
-                return data.get("users", [])
+            if data.get("api_status") == 200 and data.get("users"):
+                users.extend(data["users"])
+                offset += limit
             else:
-                st.error(f"API Error: {data.get('message', 'Unknown error')}")
+                break  # Stop when no more users are returned
         else:
             st.error(f"❌ API Error {response.status_code}: {response.text}")
-    except requests.RequestException as e:
-        st.error(f"🚨 Connection Error: {e}")
-    return None
+            break
+
+    return users
+
+# Function to fetch posts
+def fetch_all_posts():
+    if not api_key:
+        st.warning("⚠️ Please enter your API key in the sidebar.")
+        return None
+
+    posts = []
+    limit = 50  # Adjust based on API limits
+    offset = 0
+    url = f"{base_url}get-posts"  # Modify this endpoint as per your API docs
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    while True:
+        params = {"limit": limit, "offset": offset}
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("api_status") == 200 and data.get("posts"):
+                posts.extend(data["posts"])
+                offset += limit
+            else:
+                break  # Stop when no more posts are returned
+        else:
+            st.error(f"❌ API Error {response.status_code}: {response.text}")
+            break
+
+    return posts
 
 # Function to export data
 def export_data(data, filename, format_type):
@@ -83,28 +117,33 @@ def display_paginated_table(data, page_size=10):
 # --- Main Section: Export Members ---
 if page == "🏆 Export Members":
     st.title("👥 Export WooWonder Members")
-
-    user_ids_input = st.text_area("Enter User IDs (comma-separated)", "1,2,3,4,5")
-    user_ids = [uid.strip() for uid in user_ids_input.split(",") if uid.strip().isdigit()]
     
-    if st.button("🔍 Fetch Members"):
-        if user_ids:
-            with st.spinner("Loading users data..."):
-                members = fetch_users(user_ids)
-            if members:
-                st.success("✅ Members Data Loaded!")
-                display_paginated_table(members, page_size=10)
-                export_data(members, "members.csv", "CSV")
-                export_data(members, "members.json", "JSON")
-            else:
-                st.error("No member data available.")
+    if st.button("🔍 Fetch All Members"):
+        with st.spinner("Loading members..."):
+            members = fetch_all_users()
+        
+        if members:
+            st.success(f"✅ Loaded {len(members)} members!")
+            display_paginated_table(members, page_size=10)
+            export_data(members, "members.csv", "CSV")
+            export_data(members, "members.json", "JSON")
         else:
-            st.warning("⚠️ Please enter valid user IDs.")
+            st.error("No member data available.")
 
 # --- Main Section: Export Posts ---
 elif page == "📝 Export Posts":
     st.title("📝 Export WooWonder Posts")
 
-    # Fetch and display posts (Modify this function if needed)
-    st.warning("⚠️ This feature needs a valid endpoint for fetching posts.")
+    if st.button("🔍 Fetch All Posts"):
+        with st.spinner("Loading posts..."):
+            posts = fetch_all_posts()
+        
+        if posts:
+            st.success(f"✅ Loaded {len(posts)} posts!")
+            display_paginated_table(posts, page_size=10)
+            export_data(posts, "posts.csv", "CSV")
+            export_data(posts, "posts.json", "JSON")
+        else:
+            st.error("No post data available.")
+
 
