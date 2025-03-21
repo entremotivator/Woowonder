@@ -102,7 +102,7 @@ def sort_dataframe(data, sort_by):
 # --- Main Application Sections ---
 
 if page == "🏆 Export Members":
-    st.title("👥 Export WooWonder Members")
+    st.title("👥 Export ZZATEM Members")
 
     # Fetch members with a loading spinner
     with st.spinner("Loading members data..."):
