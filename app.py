@@ -10,15 +10,20 @@ st.sidebar.title("⚙️ API Configuration")
 api_key = st.sidebar.text_input("🔑 Enter API Access Token", type="password")
 base_url = st.sidebar.text_input("🌐 WooWonder API URL", "http://your-site.com/api/")
 
+# Headers to avoid redirect issues
+HEADERS = {"User-Agent": "Mozilla/5.0"}
+
 # API Test Connection
 def test_api():
     if not api_key or not base_url:
         return "Not Configured"
     try:
-        test_endpoint = f"{base_url}status"
-        response = requests.get(test_endpoint, timeout=5)
+        test_endpoint = f"{base_url}/status"
+        response = requests.get(test_endpoint, headers=HEADERS, timeout=5)
         return "Connected" if response.status_code == 200 else f"Error {response.status_code}"
-    except Exception as e:
+    except requests.exceptions.TooManyRedirects:
+        return "Error: Too Many Redirects (Check API URL)"
+    except requests.exceptions.RequestException as e:
         return f"Error: {e}"
 
 connection_status = test_api()
@@ -34,24 +39,28 @@ def fetch_all_users():
         return None
 
     users = []
-    limit = 50  # Adjust as needed
+    limit = 50
     offset = 0
-    url = f"{base_url}get-many-users-data?access_token={api_key}"
+    url = f"{base_url}/get-many-users-data?access_token={api_key}"
 
     while True:
-        params = {"limit": limit, "offset": offset}
-        response = requests.get(url, params=params, timeout=10)
-        
-        if response.status_code == 200:
+        try:
+            params = {"limit": limit, "offset": offset}
+            response = requests.get(url, params=params, headers=HEADERS, timeout=10)
+            response.raise_for_status()  # Raises error for 4xx/5xx responses
+
             data = response.json()
             if data.get("api_status") == 200 and "users" in data:
                 users.extend(data["users"])
                 offset += limit
             else:
-                break  # No more users
-        else:
-            st.error(f"❌ API Error {response.status_code}: {response.text}")
-            break
+                break  
+        except requests.exceptions.TooManyRedirects:
+            st.error("❌ Too Many Redirects. Check your API URL.")
+            return []
+        except requests.exceptions.RequestException as e:
+            st.error(f"❌ API Error: {e}")
+            return []
 
     return users
 
@@ -62,24 +71,28 @@ def fetch_all_posts():
         return None
 
     posts = []
-    limit = 50  # Adjust as needed
+    limit = 50
     offset = 0
-    url = f"{base_url}get-posts?access_token={api_key}"
+    url = f"{base_url}/get-posts?access_token={api_key}"
 
     while True:
-        params = {"limit": limit, "offset": offset}
-        response = requests.get(url, params=params, timeout=10)
-        
-        if response.status_code == 200:
+        try:
+            params = {"limit": limit, "offset": offset}
+            response = requests.get(url, params=params, headers=HEADERS, timeout=10)
+            response.raise_for_status()
+
             data = response.json()
             if data.get("api_status") == 200 and "posts" in data:
                 posts.extend(data["posts"])
                 offset += limit
             else:
-                break  # No more posts
-        else:
-            st.error(f"❌ API Error {response.status_code}: {response.text}")
-            break
+                break  
+        except requests.exceptions.TooManyRedirects:
+            st.error("❌ Too Many Redirects. Check your API URL.")
+            return []
+        except requests.exceptions.RequestException as e:
+            st.error(f"❌ API Error: {e}")
+            return []
 
     return posts
 
@@ -142,6 +155,7 @@ elif page == "📝 Export Posts":
             export_data(posts, "posts.json", "JSON")
         else:
             st.error("No post data available.")
+
 
 
 
