@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 
 # Configure page layout and title
-st.set_page_config(page_title="WooWonder Exporter", layout="wide")
+st.set_page_config(page_title="ZZATEM Exporter", layout="wide")
 
 # --- Sidebar Settings ---
 
